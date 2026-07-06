@@ -1,5 +1,46 @@
+# ===== Fichiers du bundle équipe-14 (déjà présents, on les garde ignorés) =====
 /ANALYSE_ET_PLAN_HACKATHON.md
 /Clé des points de terminaison AI.txt
 /Kubeconfig Équipe 14.yaml
 /Guide Hackathon OVH Ynov.pdf
 /Brief Hackathon OVH x Ynov.pdf
+
+# ===== SECRETS — ne JAMAIS committer (repo PUBLIC !) =====
+# Kubeconfig (accès admin complet au cluster) — quel que soit son nom/emplacement
+kubeconfig*
+*kubeconfig*
+*.kubeconfig
+Kubeconfig*
+.kube/
+
+# Clés / tokens / secrets
+.env
+.env.*
+*.env
+!.env.example
+*.token
+*token*.txt
+*secret*.txt
+*key*.txt
+ai-endpoints-key*
+Clé*.txt
+*.pem
+*.key
+*.crt
+
+# Secrets Kubernetes créés hors Git (amorçage)
+secret-*.yaml
+*-secret.yaml
+
+# ===== Python =====
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# ===== OS / éditeurs =====
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
