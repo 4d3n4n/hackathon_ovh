@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vulnerable-web
+  namespace: demo
+  labels:
+    app: vulnerable-web
+    demo-target: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vulnerable-web
+  template:
+    metadata:
+      labels:
+        app: vulnerable-web
+        demo-target: "true"
+    spec:
+      containers:
+        - name: web
+          image: nginx:1.16.0
+          securityContext:
+            privileged: true
+            runAsUser: 0
+          ports:
+            - containerPort: 80
