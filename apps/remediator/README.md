@@ -2,12 +2,12 @@
 
 Ce dossier contient le MVP de la boucle :
 
-`Trivy reports → OVHcloud AI Endpoints → correctif GitOps borné → Pull Request → revue humaine → merge → Argo CD`.
+`Trivy reports → OVHcloud AI Endpoints → correctif GitOps borné → Pull Request vers recette → revue humaine → merge recette → Argo CD recette`.
 
-Le script ne donne jamais les accès au cluster à l’IA et ne modifie jamais Kubernetes directement. L’IA sert à produire l’analyse, le titre/la description de PR et le plan de validation. Les fichiers réellement modifiés sont limités à :
+Le script ne donne jamais les accès au cluster à l’IA et ne modifie jamais Kubernetes directement. L’IA sert à produire l’analyse, le titre/la description de PR et le plan de validation. Les PR IA ciblent par défaut la branche `recette`, déployée par Argo CD dans le namespace `demo-recette`. Les fichiers réellement modifiés sont limités à :
 
-- `apps/vulnerable-app/deployment.yaml`
-- `apps/vulnerable-app/service.yaml`
+- `apps/vulnerable-app/base/deployment.yaml`
+- `apps/vulnerable-app/base/service.yaml`
 
 ## Pré-requis
 
@@ -44,6 +44,8 @@ Mode cluster live :
 python3 apps/remediator/ai_remediator.py --source live
 ```
 
+Par défaut, le mode live lit les rapports dans `demo-recette`.
+
 Mode hors ligne sur les fixtures Trivy déjà commitées :
 
 ```bash
@@ -62,6 +64,23 @@ python3 apps/remediator/ai_remediator.py --source fixtures --skip-ai
 python3 apps/remediator/ai_remediator.py --source live --create-pr
 ```
 
+Par défaut, cette commande crée une PR :
+
+- depuis `ai/remediate-vulnerable-web-recette` ;
+- vers `recette` ;
+- testée ensuite par l'Application Argo CD `vulnerable-app-recette`.
+
+Pour créer exceptionnellement une PR directe vers `main`, il faut l’expliciter :
+
+```bash
+python3 apps/remediator/ai_remediator.py \
+  --source live \
+  --namespace demo \
+  --base-branch main \
+  --branch ai/remediate-vulnerable-web-main \
+  --create-pr
+```
+
 Le correctif proposé remplace le workload volontairement vulnérable par un NGINX non-root et durcit le manifeste :
 
 - image `nginxinc/nginx-unprivileged:1.31.2-alpine-slim` ;
@@ -72,4 +91,4 @@ Le correctif proposé remplace le workload volontairement vulnérable par un NGI
 - requests/limits CPU et mémoire ;
 - token ServiceAccount désactivé.
 
-Après merge, Argo CD resynchronise automatiquement et Trivy génère de nouveaux rapports. La démo consiste à comparer les compteurs avant/après.
+Après merge dans `recette`, Argo CD resynchronise automatiquement `demo-recette` et Trivy génère de nouveaux rapports. Si la recette est validée, on ouvre ensuite une PR `recette → main`.

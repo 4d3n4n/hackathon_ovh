@@ -1,16 +1,17 @@
 # Procédure — boucle IA de remédiation GitOps
 
-Cette procédure sert à démontrer la boucle :
+Cette procédure sert à démontrer la boucle avec étape de recette :
 
-`Trivy → OVH AI Endpoints → Pull Request → revue humaine → merge → Argo CD → nouveaux rapports Trivy`.
+`Trivy → OVH AI Endpoints → Pull Request vers recette → revue humaine → merge recette → Argo CD recette → nouveaux rapports Trivy → promotion vers main`.
 
 ## Ce qui est automatique
 
 - Trivy Operator scanne le workload et crée les rapports Kubernetes.
 - Le remédiateur lit les rapports Trivy et appelle OVH AI Endpoints.
-- Le remédiateur prépare le correctif GitOps, crée une branche, commit, push et ouvre une PR.
-- Après merge sur `main`, Argo CD détecte le changement Git et resynchronise le cluster.
+- Le remédiateur prépare le correctif GitOps, crée une branche, commit, push et ouvre une PR vers `recette`.
+- Après merge sur `recette`, Argo CD détecte le changement Git et resynchronise le namespace `demo-recette`.
 - Après le nouveau déploiement, Trivy régénère des rapports pour le nouveau ReplicaSet.
+- Si la recette est validée, une PR `recette → main` permet de promouvoir le changement.
 
 ## Ce qui reste volontairement humain
 
@@ -36,8 +37,8 @@ Le fichier `.env` reste local et ne doit jamais être commité.
 
 La PR doit montrer un changement sur :
 
-- `apps/vulnerable-app/deployment.yaml`
-- `apps/vulnerable-app/service.yaml`
+- `apps/vulnerable-app/base/deployment.yaml`
+- `apps/vulnerable-app/base/service.yaml`
 
 Les points attendus :
 
@@ -53,7 +54,7 @@ Les points attendus :
 - requests/limits CPU et mémoire ;
 - `automountServiceAccountToken: false`.
 
-Si la PR est correcte, la merger sur GitHub.
+Si la PR est correcte, la merger sur GitHub dans `recette`, pas directement dans `main`.
 
 ## Après merge : vérifier automatiquement
 
@@ -61,6 +62,14 @@ Utiliser le script :
 
 ```bash
 bash demo/verify-after-merge.sh
+```
+
+Par défaut, le script vérifie `vulnerable-app-recette` dans le namespace `demo-recette`.
+
+Pour vérifier l’environnement `main/demo` :
+
+```bash
+APP_NAME=vulnerable-app NAMESPACE=demo bash demo/verify-after-merge.sh
 ```
 
 Ce script vérifie :
@@ -77,7 +86,7 @@ Ce script vérifie :
 Forcer un refresh Argo si nécessaire :
 
 ```bash
-kubectl -n argocd annotate application vulnerable-app argocd.argoproj.io/refresh=hard --overwrite
+kubectl -n argocd annotate application vulnerable-app-recette argocd.argoproj.io/refresh=hard --overwrite
 ```
 
 Vérifier Argo :
@@ -89,20 +98,20 @@ kubectl -n argocd get applications
 Attendu :
 
 ```text
-vulnerable-app   Synced   Healthy
+vulnerable-app-recette   Synced   Healthy
 ```
 
 Vérifier le rollout :
 
 ```bash
-kubectl -n demo rollout status deploy/vulnerable-web
-kubectl -n demo get deploy,pod,svc
+kubectl -n demo-recette rollout status deploy/vulnerable-web
+kubectl -n demo-recette get deploy,pod,svc
 ```
 
 Vérifier le contenu appliqué :
 
 ```bash
-kubectl -n demo get deploy vulnerable-web \
+kubectl -n demo-recette get deploy vulnerable-web \
   -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}{.spec.template.spec.containers[0].ports[0].containerPort}{"\n"}{.spec.template.spec.containers[0].securityContext}{"\n"}'
 ```
 
@@ -117,21 +126,21 @@ nginxinc/nginx-unprivileged:1.31.2-alpine-slim
 Vérifier les rapports Trivy :
 
 ```bash
-kubectl -n demo get vulnerabilityreports
-kubectl -n demo get configauditreports
+kubectl -n demo-recette get vulnerabilityreports
+kubectl -n demo-recette get configauditreports
 ```
 
 Résumé des CVE :
 
 ```bash
-kubectl -n demo get vulnerabilityreports -o json \
+kubectl -n demo-recette get vulnerabilityreports -o json \
   | jq -r '.items[] | "\(.metadata.name) image=\(.report.artifact.repository):\(.report.artifact.tag) critical=\(.report.summary.criticalCount) high=\(.report.summary.highCount) medium=\(.report.summary.mediumCount)"'
 ```
 
 Checks de configuration encore en échec :
 
 ```bash
-kubectl -n demo get configauditreports -o json \
+kubectl -n demo-recette get configauditreports -o json \
   | jq -r '.items[].report.checks[]? | select(.success != true) | [.severity, .checkID, .title] | @tsv'
 ```
 
@@ -149,4 +158,3 @@ C’est normal. Pour la démo, montrer surtout :
 3. image corrigée ;
 4. securityContext durci ;
 5. baisse des vulnérabilités critiques/hautes et des erreurs de configuration sur le nouveau rapport.
-

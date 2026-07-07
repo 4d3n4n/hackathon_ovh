@@ -63,8 +63,8 @@ kubectl -n demo get configauditreport "$CONFIG_REPORT" -o json \
   | python3 -c "import json,sys; d=json.load(sys.stdin); [print(c['severity'], c['checkID'], '-', c['title']) for c in d['report']['checks'] if not c.get('success', True)]"
 pause
 
-step "6. Remediateur IA OVH — analyse et PR en dry-run"
-echo "Le dry-run lit les rapports Trivy, appelle OVH AI Endpoints, valide le correctif, mais ne cree aucune branche."
+step "6. Remediateur IA OVH — analyse et PR recette en dry-run"
+echo "Le dry-run lit les rapports Trivy de demo-recette, appelle OVH AI Endpoints, valide le correctif, mais ne cree aucune branche."
 read -rp "Executer l'analyse IA maintenant ? (o/N) " REPLY
 if [[ "$REPLY" =~ ^[oO]$ ]]; then
   python3 apps/remediator/ai_remediator.py --source live || echo "(analyse IA non executee — verifier cle AI, reseau ou rapports Trivy)"

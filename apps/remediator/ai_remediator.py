@@ -33,8 +33,9 @@ from typing import Any
 DEFAULT_BASE_URL = "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1"
 DEFAULT_MODEL = "gpt-oss-20b"
 DEFAULT_TARGET_IMAGE = "nginxinc/nginx-unprivileged:1.31.2-alpine-slim"
-DEFAULT_BRANCH = "ai/remediate-vulnerable-web"
-DEFAULT_NAMESPACE = "demo"
+DEFAULT_BRANCH = "ai/remediate-vulnerable-web-recette"
+DEFAULT_BASE_BRANCH = "recette"
+DEFAULT_NAMESPACE = "demo-recette"
 
 SEVERITY_ORDER = {
     "CRITICAL": 0,
@@ -383,6 +384,30 @@ def collect_reports(args: argparse.Namespace, root: Path) -> dict[str, Any]:
         return reports
 
 
+def has_trivy_reports(reports: dict[str, Any]) -> bool:
+    return bool(reports.get("vulnerability_reports") or reports.get("config_audit_reports"))
+
+
+def require_reports_for_pr(
+    reports: dict[str, Any],
+    namespace: str,
+    requested_source: str,
+) -> None:
+    if requested_source != "fixtures" and reports.get("source") != "live-cluster":
+        raise RemediatorError(
+            "Création de PR refusée: les rapports live ne sont pas disponibles. "
+            f"Attends le déploiement de recette et les rapports Trivy dans {namespace}, "
+            "ou relance explicitement avec --source fixtures si tu veux utiliser le mode secours."
+        )
+    if has_trivy_reports(reports):
+        return
+    raise RemediatorError(
+        "Aucun rapport Trivy disponible pour créer une PR. "
+        f"Attends que l'Application Argo de recette soit déployée et que Trivy scanne le namespace {namespace}, "
+        "puis relance le remédiateur."
+    )
+
+
 def compact(value: Any, limit: int) -> str:
     text = " ".join(str(value).split())
     if len(text) <= limit:
@@ -396,8 +421,8 @@ def utc_now() -> str:
 
 def read_current_manifests(root: Path) -> dict[str, str]:
     paths = [
-        "apps/vulnerable-app/deployment.yaml",
-        "apps/vulnerable-app/service.yaml",
+        "apps/vulnerable-app/base/deployment.yaml",
+        "apps/vulnerable-app/base/service.yaml",
     ]
     manifests: dict[str, str] = {}
     for relative in paths:
@@ -572,9 +597,9 @@ def offline_ai_analysis(target_image: str) -> dict[str, Any]:
             "Ajouter requests/limits CPU et mémoire.",
         ],
         "validation_plan": [
-            "kubectl apply --dry-run=client --validate=false -f apps/vulnerable-app",
-            "Après merge, vérifier Argo CD Synced/Healthy.",
-            "Attendre le nouveau rapport Trivy et comparer les compteurs Critical/High.",
+            "Vérifier la PR générée sur la branche recette.",
+            "Après merge dans recette, vérifier vulnerable-app-recette Synced/Healthy.",
+            "Attendre le nouveau rapport Trivy dans demo-recette et comparer les compteurs Critical/High.",
         ],
         "pr_title": "fix(security): durcit le workload vulnerable-web",
         "pr_body": (
@@ -592,7 +617,6 @@ def render_fixed_deployment(target_image: str) -> str:
         kind: Deployment
         metadata:
           name: vulnerable-web
-          namespace: demo
           labels:
             app: vulnerable-web
             demo-target: "true"
@@ -651,7 +675,6 @@ def render_fixed_service() -> str:
         kind: Service
         metadata:
           name: vulnerable-web
-          namespace: demo
           labels:
             app: vulnerable-web
         spec:
@@ -667,15 +690,15 @@ def render_fixed_service() -> str:
 
 def proposed_files(target_image: str) -> dict[str, str]:
     return {
-        "apps/vulnerable-app/deployment.yaml": render_fixed_deployment(target_image),
-        "apps/vulnerable-app/service.yaml": render_fixed_service(),
+        "apps/vulnerable-app/base/deployment.yaml": render_fixed_deployment(target_image),
+        "apps/vulnerable-app/base/service.yaml": render_fixed_service(),
     }
 
 
 def validate_rendered_files(root: Path, files: dict[str, str]) -> list[str]:
     checks: list[str] = []
-    deployment = files["apps/vulnerable-app/deployment.yaml"]
-    service = files["apps/vulnerable-app/service.yaml"]
+    deployment = files["apps/vulnerable-app/base/deployment.yaml"]
+    service = files["apps/vulnerable-app/base/service.yaml"]
     required_snippets = [
         "runAsNonRoot: true",
         "allowPrivilegeEscalation: false",
@@ -710,7 +733,9 @@ def validate_rendered_files(root: Path, files: dict[str, str]) -> list[str]:
                     "--dry-run=client",
                     "--validate=false",
                     "-f",
-                    str(tmp_path / "apps/vulnerable-app"),
+                    str(tmp_path / "apps/vulnerable-app/base/deployment.yaml"),
+                    "-f",
+                    str(tmp_path / "apps/vulnerable-app/base/service.yaml"),
                 ],
                 cwd=root,
                 env=kubectl_env(root),
@@ -775,7 +800,15 @@ def ensure_clean_worktree(root: Path) -> None:
         )
 
 
-def checkout_branch(root: Path, branch: str) -> None:
+def checkout_branch(root: Path, branch: str, base_branch: str) -> None:
+    run(["git", "fetch", "origin", base_branch], cwd=root)
+    local_base = run(["git", "rev-parse", "--verify", base_branch], cwd=root, check=False)
+    if local_base.returncode == 0:
+        run(["git", "checkout", base_branch], cwd=root)
+        run(["git", "pull", "--ff-only", "origin", base_branch], cwd=root)
+    else:
+        run(["git", "checkout", "-b", base_branch, f"origin/{base_branch}"], cwd=root)
+
     current = run(["git", "branch", "--show-current"], cwd=root).stdout.strip()
     if current == branch:
         return
@@ -938,7 +971,7 @@ def parse_args() -> argparse.Namespace:
         default=os.environ.get("REMEDIATOR_TARGET_IMAGE", DEFAULT_TARGET_IMAGE),
     )
     parser.add_argument("--branch", default=DEFAULT_BRANCH)
-    parser.add_argument("--base-branch", default="main")
+    parser.add_argument("--base-branch", default=DEFAULT_BASE_BRANCH)
     parser.add_argument(
         "--skip-ai",
         action="store_true",
@@ -963,6 +996,8 @@ def main() -> int:
 
     try:
         reports = collect_reports(args, root)
+        if args.create_pr:
+            require_reports_for_pr(reports, args.namespace, args.source)
         manifests = read_current_manifests(root)
         if args.skip_ai:
             ai_analysis = offline_ai_analysis(args.target_image)
@@ -987,7 +1022,7 @@ def main() -> int:
 
         if args.create_pr:
             ensure_clean_worktree(root)
-            checkout_branch(root, args.branch)
+            checkout_branch(root, args.branch, args.base_branch)
 
         write_files(root, files)
 

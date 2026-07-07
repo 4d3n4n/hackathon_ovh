@@ -2,7 +2,6 @@ apiVersion: v1
 kind: Service
 metadata:
   name: vulnerable-web
-  namespace: demo
   labels:
     app: vulnerable-web
 spec:

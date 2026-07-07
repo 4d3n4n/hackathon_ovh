@@ -1,17 +1,19 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: vulnerable-app
+  name: vulnerable-app-recette
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
 spec:
   project: default
   source:
     repoURL: https://github.com/4d3n4n/hackathon_ovh.git
-    targetRevision: main
-    path: apps/vulnerable-app/overlays/prod
+    targetRevision: recette
+    path: apps/vulnerable-app/overlays/recette
   destination:
     server: https://kubernetes.default.svc
-    namespace: demo
+    namespace: demo-recette
   syncPolicy:
     automated:
       prune: true

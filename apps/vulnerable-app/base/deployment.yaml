@@ -2,7 +2,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: vulnerable-web
-  namespace: demo
   labels:
     app: vulnerable-web
     demo-target: "true"

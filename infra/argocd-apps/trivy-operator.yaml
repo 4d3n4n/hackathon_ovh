@@ -13,7 +13,7 @@ spec:
     targetRevision: 0.33.2
     helm:
       valuesObject:
-        targetNamespaces: "demo"
+        targetNamespaces: "demo,demo-recette"
         operator:
           scanJobsConcurrentLimit: 2
           resources:
