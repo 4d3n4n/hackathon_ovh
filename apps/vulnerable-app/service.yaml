@@ -9,6 +9,5 @@ spec:
   selector:
     app: vulnerable-web
   ports:
-    - name: http
-      port: 80
-      targetPort: 8080
+    - port: 80
+      targetPort: 80
