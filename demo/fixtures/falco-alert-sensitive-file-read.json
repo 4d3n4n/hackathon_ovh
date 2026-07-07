@@ -1,0 +1,33 @@
+[
+  {
+    "hostname": "pool-equipe-14-node-e3ec5e",
+    "output": "08:56:23.918583568: Warning Sensitive file opened for reading by non-trusted program | file=/etc/shadow gparent=containerd-shim ggparent=systemd gggparent=<NA> evt_type=open user=root user_uid=0 user_loginuid=-1 process=cat proc_exepath=/bin/cat parent=sh command=cat /etc/shadow terminal=0 container_id=ffdf1fa8b12d container_name=web container_image_repository=docker.io/library/nginx container_image_tag=1.16.0 k8s_pod_name=vulnerable-web-997b68db5-52x49 k8s_ns_name=demo",
+    "output_fields": {
+      "container.id": "ffdf1fa8b12d",
+      "container.image.repository": "docker.io/library/nginx",
+      "container.image.tag": "1.16.0",
+      "container.name": "web",
+      "evt.time": 1783414583918583568,
+      "evt.type": "open",
+      "fd.name": "/etc/shadow",
+      "k8s.ns.name": "demo",
+      "k8s.pod.name": "vulnerable-web-997b68db5-52x49",
+      "proc.aname[2]": "containerd-shim",
+      "proc.aname[3]": "systemd",
+      "proc.aname[4]": null,
+      "proc.cmdline": "cat /etc/shadow",
+      "proc.exepath": "/bin/cat",
+      "proc.name": "cat",
+      "proc.pname": "sh",
+      "proc.tty": 0,
+      "user.loginuid": -1,
+      "user.name": "root",
+      "user.uid": 0
+    },
+    "priority": "Warning",
+    "rule": "Read sensitive file untrusted",
+    "source": "syscall",
+    "tags": ["T1555", "container", "filesystem", "host", "maturity_stable", "mitre_credential_access"],
+    "time": "2026-07-07T08:56:23.918583568Z"
+  }
+]
