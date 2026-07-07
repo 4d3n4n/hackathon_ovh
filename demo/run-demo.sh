@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
 # Script de demo — rejoue l'etat actuel du projet, etape par etape.
 # Usage : bash demo/run-demo.sh
-# Variable optionnelle : KUBECONFIG (sinon ~/.kube-hackathon/kubeconfig-equipe-14.yaml)
+# Variable optionnelle : KUBECONFIG.
 
 set -euo pipefail
 
-export KUBECONFIG="${KUBECONFIG:-$HOME/.kube-hackathon/kubeconfig-equipe-14.yaml}"
+if [[ -z "${KUBECONFIG:-}" ]]; then
+  if [[ -f "$HOME/.kube-hackathon/kubeconfig-equipe-14.yaml" ]]; then
+    export KUBECONFIG="$HOME/.kube-hackathon/kubeconfig-equipe-14.yaml"
+  else
+    export KUBECONFIG="$(find "$PWD" -maxdepth 1 -name 'Kubeconfig*.yaml' -print -quit)"
+  fi
+fi
 
 pause() {
   echo
@@ -25,7 +31,7 @@ kubectl get nodes
 pause
 
 step "2. Applications Argo CD (GitOps : Git est la source de verite)"
-argocd app list 2>/dev/null || echo "(argocd CLI non connecte — lance : kubectl -n argocd port-forward svc/argocd-server 8080:443, puis argocd login localhost:8080 --insecure)"
+kubectl -n argocd get applications 2>/dev/null || echo "(Applications Argo CD non lisibles — verifie KUBECONFIG et le namespace argocd)"
 pause
 
 step "3. Le workload vulnerable qui tourne"
@@ -54,10 +60,23 @@ echo
 echo "-- checks en echec --"
 CONFIG_REPORT=$(kubectl -n demo get configauditreports -o jsonpath='{.items[0].metadata.name}')
 kubectl -n demo get configauditreport "$CONFIG_REPORT" -o json \
-  | python -c "import json,sys; d=json.load(sys.stdin); [print(c['severity'], c['checkID'], '-', c['title']) for c in d['report']['checks'] if not c.get('success', True)]"
+  | python3 -c "import json,sys; d=json.load(sys.stdin); [print(c['severity'], c['checkID'], '-', c['title']) for c in d['report']['checks'] if not c.get('success', True)]"
 pause
 
-step "6. Preuve du self-heal GitOps (optionnel)"
+step "6. Remediateur IA OVH — analyse et PR en dry-run"
+echo "Le dry-run lit les rapports Trivy, appelle OVH AI Endpoints, valide le correctif, mais ne cree aucune branche."
+read -rp "Executer l'analyse IA maintenant ? (o/N) " REPLY
+if [[ "$REPLY" =~ ^[oO]$ ]]; then
+  python3 apps/remediator/ai_remediator.py --source live || echo "(analyse IA non executee — verifier cle AI, reseau ou rapports Trivy)"
+else
+  echo "(saute)"
+fi
+echo
+echo "Pour creer la vraie PR ensuite :"
+echo "python3 apps/remediator/ai_remediator.py --source live --create-pr"
+pause
+
+step "7. Preuve du self-heal GitOps (optionnel)"
 echo "On va scaler manuellement a 3 replicas (drift hors Git)..."
 read -rp "Executer ce test ? (o/N) " REPLY
 if [[ "$REPLY" =~ ^[oO]$ ]]; then
@@ -71,4 +90,4 @@ else
 fi
 
 step "Fin de la demo — etat actuel du projet"
-echo "Composants pas encore installes : Kyverno, Falco, Prometheus, remediateur IA."
+echo "Composants pas encore installes : Kyverno, Falco, Prometheus."

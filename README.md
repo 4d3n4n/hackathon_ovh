@@ -28,3 +28,21 @@ kubectl apply -f infra/argocd-apps/root-app.yaml
 ## Secrets
 
 Aucun secret n'est commité. Variables d'environnement requises pour le remédiateur : voir `apps/remediator/README.md`.
+
+## Remédiateur IA
+
+Le MVP de remédiation est dans `apps/remediator/`. Il lit les rapports Trivy, appelle OVHcloud AI Endpoints avec la clé locale ignorée par Git, génère une analyse, applique uniquement un correctif allow-listé sur le workload de démo, puis peut préparer une Pull Request.
+
+Dry-run sans modification :
+
+```bash
+python3 apps/remediator/ai_remediator.py --source live
+```
+
+Création de PR :
+
+```bash
+python3 apps/remediator/ai_remediator.py --source live --create-pr
+```
+
+La PR reste toujours soumise à revue humaine avant merge.
