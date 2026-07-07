@@ -18,6 +18,12 @@ spec:
         prometheus:
           prometheusSpec:
             retention: 1d
+            serviceMonitorSelector: {}
+            serviceMonitorSelectorNilUsesHelmValues: false
+            podMonitorSelector: {}
+            podMonitorSelectorNilUsesHelmValues: false
+            ruleSelector: {}
+            ruleSelectorNilUsesHelmValues: false
             resources:
               requests:
                 cpu: 100m
