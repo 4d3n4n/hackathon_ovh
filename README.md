@@ -46,3 +46,5 @@ python3 apps/remediator/ai_remediator.py --source live --create-pr
 ```
 
 La PR reste toujours soumise à revue humaine avant merge.
+
+Procédure détaillée de démo et vérification post-merge : `docs/PROCEDURE_REMEDIATION_IA.md`.
